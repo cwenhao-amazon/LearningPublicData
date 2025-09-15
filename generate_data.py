@@ -357,4 +357,4 @@ viewer = PlotlyLearningContentViewer(
     #content_filter="Testing Frameworks",
     #type_filter="tech_choices"
 )
-viewer.save_viewer("learning_content_viewer.html")
+viewer.save_viewer("index.html")
