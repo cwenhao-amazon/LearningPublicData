@@ -10,34 +10,79 @@ class LearningContentViewer {
         this.typeButtonsContainer = document.getElementById('type-buttons');
         this.contentOutput = document.getElementById('content-output');
         this.filterInfo = document.getElementById('filter-info');
+        this.statusMessage = document.getElementById('status-message');
+        this.loadingIndicator = document.getElementById('loading-indicator');
+        
+        // List of JSON files to load - replace these with your actual file names
+        this.availableFiles = [
+            "Unity-MLAgents-LoadFromHub-Assets_learnings.json",  // Replace with your actual filename
+            // Add more files as needed
+        ];
         
         this.init();
     }
     
     async init() {
-        await this.fetchJsonFiles();
-        this.setupEventListeners();
+        try {
+            // First try to load actual files
+            await this.tryLoadingFiles();
+        } catch (error) {
+            console.error("Error during initialization:", error);
+            this.showStatusMessage("Could not load data files. Using sample data instead.", "error");
+            this.useSampleData();
+        }
     }
     
-    async fetchJsonFiles() {
+    showStatusMessage(message, type = "info") {
+        this.statusMessage.className = `status-message ${type}`;
+        this.statusMessage.textContent = message;
+        this.statusMessage.style.display = "block";
+    }
+    
+    hideStatusMessage() {
+        this.statusMessage.style.display = "none";
+    }
+    
+    showLoading() {
+        this.loadingIndicator.style.display = "block";
+    }
+    
+    hideLoading() {
+        this.loadingIndicator.style.display = "none";
+    }
+    
+    async tryLoadingFiles() {
+        this.showLoading();
+        this.showStatusMessage("Attempting to load JSON files...");
+        
         try {
-            // Fetch the list of JSON files from a manifest or directory listing
-            const response = await fetch(`${this.dataDirectory}/file_manifest.json`);
-            const files = await response.json();
-            
-            this.jsonFiles = files.filter(file => file.endsWith('_learnings.json'));
-            
-            // Filter files based on content and type
+            // Try loading each file in the list
+            const loadedFiles = [];
             const filteredFiles = [];
-            for (const fileName of this.jsonFiles) {
-                const fileData = await this.loadJsonFile(fileName);
-                if (this.fileContainsFilteredContent(fileData)) {
-                    filteredFiles.push(fileName);
+            
+            for (const fileName of this.availableFiles) {
+                try {
+                    console.log(`Trying to load: ${this.dataDirectory}/${fileName}`);
+                    const data = await this.loadJsonFile(fileName);
+                    loadedFiles.push(fileName);
+                    
+                    if (this.fileContainsFilteredContent(data)) {
+                        filteredFiles.push(fileName);
+                    }
+                } catch (fileError) {
+                    console.warn(`Failed to load ${fileName}:`, fileError);
+                    // Continue with other files
                 }
             }
             
+            this.jsonFiles = loadedFiles;
+            
+            if (loadedFiles.length === 0) {
+                throw new Error("No files could be loaded");
+            }
+            
             // Update filter info
-            this.updateFilterInfo(filteredFiles.length > 0 ? filteredFiles.length : 0);
+            this.updateFilterInfo(filteredFiles.length);
             
             // Use filtered files or all files
             const displayFiles = filteredFiles.length > 0 ? filteredFiles : this.jsonFiles;
@@ -51,18 +96,56 @@ class LearningContentViewer {
                 this.fileSelect.appendChild(option);
             });
             
+            // Setup event listeners
+            this.setupEventListeners();
+            
             // Load the first file if available
             if (displayFiles.length > 0) {
                 this.fileSelect.value = displayFiles[0];
                 await this.handleFileSelection(displayFiles[0]);
+                this.showStatusMessage(`Loaded ${loadedFiles.length} files successfully`);
+                setTimeout(() => this.hideStatusMessage(), 3000);
             }
+            
+            this.hideLoading();
         } catch (error) {
-            console.error("Error fetching file list:", error);
-            this.contentOutput.innerHTML = `<p>Error loading files: ${error.message}</p>`;
+            this.hideLoading();
+            console.error("Failed to load files:", error);
+            throw error; // Rethrow for the caller to handle
+        }
+    }
+    
+    useSampleData() {
+        this.jsonFiles = Object.keys(SAMPLE_DATA);
+        
+        // Update filter info
+        this.updateFilterInfo(this.jsonFiles.length);
+        
+        // Populate the file dropdown
+        this.fileSelect.innerHTML = '';
+        this.jsonFiles.forEach(file => {
+            const option = document.createElement('option');
+            option.value = file;
+            option.textContent = file;
+            this.fileSelect.appendChild(option);
+        });
+        
+        // Setup event listeners
+        this.setupEventListeners();
+        
+        // Load the first file
+        if (this.jsonFiles.length > 0) {
+            const firstFile = this.jsonFiles[0];
+            this.fileSelect.value = firstFile;
+            this.currentJsonData = SAMPLE_DATA[firstFile];
+            this.updateTypeButtons();
+            this.displaySelectedContent();
         }
     }
     
     fileContainsFilteredContent(data) {
+        if (!Array.isArray(data)) return false;
+        
         return data.some(item => 
             item && 
             typeof item === 'object' &&
@@ -85,24 +168,64 @@ class LearningContentViewer {
     
     async loadJsonFile(fileName) {
         try {
-            const response = await fetch(`${this.dataDirectory}/${fileName}`);
+            // Try fetch with timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const response = await fetch(`${this.dataDirectory}/${fileName}`, { 
+                signal: controller.signal,
+                headers: { 'Accept': 'application/json' }
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            
+            // Check Content-Type to avoid trying to parse HTML as JSON
+            const contentType = response.headers.get('content-type');
+            if (contentType && !contentType.includes('application/json')) {
+                console.warn(`File ${fileName} has wrong content type: ${contentType}`);
+                throw new Error('Not a JSON file');
+            }
+            
             return await response.json();
         } catch (error) {
             console.error(`Error loading ${fileName}:`, error);
-            return [{ type: "error", summary: `Error loading file: ${error.message}`, data: null }];
+            throw error;
         }
     }
     
     setupEventListeners() {
         this.fileSelect.addEventListener('change', async (event) => {
-            await this.handleFileSelection(event.target.value);
+            this.showLoading();
+            try {
+                await this.handleFileSelection(event.target.value);
+            } catch (error) {
+                this.showStatusMessage(`Failed to load file: ${error.message}`, "error");
+            } finally {
+                this.hideLoading();
+            }
         });
     }
     
     async handleFileSelection(fileName) {
-        this.currentJsonData = await this.loadJsonFile(fileName);
-        this.updateTypeButtons();
-        this.displaySelectedContent();
+        try {
+            // Check if this is sample data
+            if (SAMPLE_DATA[fileName]) {
+                this.currentJsonData = SAMPLE_DATA[fileName];
+            } else {
+                // Try to load from server
+                this.currentJsonData = await this.loadJsonFile(fileName);
+            }
+            
+            this.updateTypeButtons();
+            this.displaySelectedContent();
+        } catch (error) {
+            console.error(`Failed to handle selection of ${fileName}:`, error);
+            this.showStatusMessage(`Error: ${error.message}`, "error");
+        }
     }
     
     updateTypeButtons() {
@@ -117,6 +240,11 @@ class LearningContentViewer {
                 .filter(item => item && typeof item === 'object' && item.type)
                 .map(item => item.type)
         )].sort();
+        
+        if (types.length === 0) {
+            this.typeButtonsContainer.innerHTML = '<p>No content types found</p>';
+            return;
+        }
         
         // Create buttons
         types.forEach(type => {
@@ -160,11 +288,11 @@ class LearningContentViewer {
         );
         
         // Create content
-        let contentHtml = `<h2>${repoName} - ${typeName.replace('_', ' ').charAt(0).toUpperCase() + typeName.replace('_', ' ').slice(1)}</h2>`;
+        let contentHtml = `<h2>${repoName} - ${typeName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</h2>`;
         
         // Add note about filter if applicable
         if (typeName === this.typeFilter && hasMatchingContent) {
-            contentHtml += `<em>This section contains '${this.contentFilter}'</em>`;
+            contentHtml += `<p><em>This section contains '${this.contentFilter}'</em></p>`;
         }
         
         // Add each item's summary
@@ -233,6 +361,6 @@ class LearningContentViewer {
 
 // Initialize the viewer when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    // The dataDirectory should point to where your JSON files are located
+    // Replace with the actual path to your JSON files
     const viewer = new LearningContentViewer('./data');
 });

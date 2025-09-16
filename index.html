@@ -66,18 +66,52 @@
             background-color: yellow;
             font-weight: bold;
         }
+        
+        .status-message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        
+        .error {
+            background-color: #ffeeee;
+            border: 1px solid #ffcccc;
+            color: #cc0000;
+        }
+        
+        .info {
+            background-color: #e8f4f8;
+            border: 1px solid #d0e8f0;
+            color: #0066cc;
+        }
+        
+        #loading-indicator {
+            display: none;
+            text-align: center;
+            margin: 20px;
+        }
     </style>
 </head>
 <body>
     <h1>Learning Content Viewer</h1>
     
     <div class="container">
-        <div id="filter-info" class="filter-info"></div>
+        <div id="filter-info" class="filter-info">
+            <p>Filtering for content containing "Testing Frameworks" in "tech_choices" sections.</p>
+        </div>
+        
+        <div id="status-message" class="status-message info">
+            Loading data...
+        </div>
         
         <label for="file-select">Select file:</label>
         <select id="file-select" class="file-selector">
             <option value="">Loading files...</option>
         </select>
+        
+        <div id="loading-indicator">
+            Loading content... Please wait.
+        </div>
         
         <div>
             <label for="type-buttons">Select content type:</label>
@@ -88,6 +122,26 @@
             <p>Please select a file to view content</p>
         </div>
     </div>
+    
+    <script>
+    // Hardcoded sample data - this ensures the app works even if file loading fails
+    const SAMPLE_DATA = {
+        "example_learnings.json": [
+            {
+                "type": "tech_choices",
+                "summary": "# Tech Choices Summary for Accelerate Repository\n\nAccelerate is a Python library designed to simplify the process of training and deploying PyTorch models across various hardware configurations. It focuses on providing tools for distributed training and hardware acceleration, with particular emphasis on supporting large-scale machine learning workloads.\n\n## Programming Languages\n\n- **Python**: The primary language used throughout the repository\n- The project follows standard Python package structure with setup.py and pyproject.toml\n\n## Backend Technologies\n\n- **PyTorch**: The main backend framework that Accelerate is built to support\n- Contains utilities specifically designed to enhance PyTorch functionality\n- Includes specialized modules for PyTorch XLA integration\n\n## Machine Learning Frameworks\n\n- **PyTorch**: Core ML framework supported\n- **DeepSpeed**: Integration for efficient large model training and optimization\n- **Megatron-LM**: Support for training very large language models\n- The library appears focused on accelerating and simplifying distributed training workflows\n\n## Infrastructure & Deployment\n\n- **Docker**: Includes separate Dockerfiles for both CPU and GPU environments\n- **SageMaker**: Contains specific commands and utilities for AWS SageMaker deployment\n- **TPU**: Dedicated support for Google's Tensor Processing Units with specialized command modules\n- The infrastructure choices reflect the project's focus on supporting various hardware acceleration options\n\n## Testing Frameworks\n\n- **Python's built-in unittest or pytest**: Comprehensive test suite following standard Python testing conventions\n- Tests cover core functionality including accelerator features and multi-GPU scenarios\n\n## Build Systems\n\n- **setuptools**: Used for building and packaging the Python library\n- Configured through standard setup.py and setup.cfg files\n\n## Package Management\n\n- **pip**: Standard Python package manager used for installation and dependency management\n- Project follows conventional Python packaging practices\n\n## CI/CD Tools\n\n- **GitHub Actions**: Used for continuous integration and documentation workflows\n- Includes specialized workflows for building, uploading, and managing PR documentation\n\n## Version Control Systems\n\n- **Git**: Standard version control system used for the project\n- Includes conventional Git configuration files and ignore patterns"
+            },
+            {
+                "type": "team_preferences",
+                "summary": "# Team Preferences Summary\n\nThis summary outlines the working style and organizational approach of the Accelerate repository team, based on the available information from the repository structure and documentation."
+            },
+            {
+                "type": "non_functional_specs",
+                "summary": "# Non-functional Specifications for Accelerate Repository\n\nThis document summarizes the key non-functional specifications identified in the Accelerate repository, which focuses on optimizing and accelerating machine learning training and inference processes."
+            }
+        ]
+    };
+    </script>
     
     <script src="script.js"></script>
 </body>
