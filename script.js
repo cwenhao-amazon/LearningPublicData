@@ -234,5 +234,5 @@ class LearningContentViewer {
 // Initialize the viewer when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     // The dataDirectory should point to where your JSON files are located
-    const viewer = new LearningContentViewer('./data');
+    const viewer = new LearningContentViewer('/LearningPublicData/data');
 });
