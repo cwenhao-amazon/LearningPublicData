@@ -22,7 +22,7 @@ class LearningContentViewer {
     async fetchJsonFiles() {
         try {
             // Fetch the list of JSON files from a manifest or directory listing
-            const response = await fetch(`\${this.dataDirectory}/file_manifest.json`);
+            const response = await fetch(`${this.dataDirectory}/file_manifest.json`);
             const files = await response.json();
             
             this.jsonFiles = files.filter(file => file.endsWith('_learnings.json'));
@@ -58,7 +58,7 @@ class LearningContentViewer {
             }
         } catch (error) {
             console.error("Error fetching file list:", error);
-            this.contentOutput.innerHTML = `<p>Error loading files: \${error.message}</p>`;
+            this.contentOutput.innerHTML = `<p>Error loading files: ${error.message}</p>`;
         }
     }
     
@@ -76,20 +76,20 @@ class LearningContentViewer {
     updateFilterInfo(count) {
         let message;
         if (count > 0) {
-            message = `Showing \${count} files containing '<strong>\${this.contentFilter}</strong>' in '<strong>\${this.typeFilter}</strong>' sections`;
+            message = `Showing ${count} files containing '<strong>${this.contentFilter}</strong>' in '<strong>${this.typeFilter}</strong>' sections`;
         } else {
-            message = `No files found containing '<strong>\${this.contentFilter}</strong>' in '<strong>\${this.typeFilter}</strong>' sections. Showing all files.`;
+            message = `No files found containing '<strong>${this.contentFilter}</strong>' in '<strong>${this.typeFilter}</strong>' sections. Showing all files.`;
         }
         this.filterInfo.innerHTML = message;
     }
     
     async loadJsonFile(fileName) {
         try {
-            const response = await fetch(`\${this.dataDirectory}/\${fileName}`);
+            const response = await fetch(`${this.dataDirectory}/${fileName}`);
             return await response.json();
         } catch (error) {
-            console.error(`Error loading \${fileName}:`, error);
-            return [{ type: "error", summary: `Error loading file: \${error.message}`, data: null }];
+            console.error(`Error loading ${fileName}:`, error);
+            return [{ type: "error", summary: `Error loading file: ${error.message}`, data: null }];
         }
     }
     
@@ -147,7 +147,7 @@ class LearningContentViewer {
         );
         
         if (contentItems.length === 0) {
-            this.contentOutput.innerHTML = `<p>No content found for type: \${typeName}</p>`;
+            this.contentOutput.innerHTML = `<p>No content found for type: ${typeName}</p>`;
             return;
         }
         
@@ -160,11 +160,11 @@ class LearningContentViewer {
         );
         
         // Create content
-        let contentHtml = `<h2>\${repoName} - \${typeName.replace('_', ' ').charAt(0).toUpperCase() + typeName.replace('_', ' ').slice(1)}</h2>`;
+        let contentHtml = `<h2>${repoName} - ${typeName.replace('_', ' ').charAt(0).toUpperCase() + typeName.replace('_', ' ').slice(1)}</h2>`;
         
         // Add note about filter if applicable
         if (typeName === this.typeFilter && hasMatchingContent) {
-            contentHtml += `<em>This section contains '\${this.contentFilter}'</em>`;
+            contentHtml += `<em>This section contains '${this.contentFilter}'</em>`;
         }
         
         // Add each item's summary
@@ -177,12 +177,12 @@ class LearningContentViewer {
             if (this.contentFilter && typeName === this.typeFilter && summary.includes(this.contentFilter)) {
                 summary = summary.replace(
                     new RegExp(this.contentFilter, 'g'),
-                    `<span class="highlight">\${this.contentFilter}</span>`
+                    `<span class="highlight">${this.contentFilter}</span>`
                 );
             }
             
             // Convert markdown to HTML
-            contentHtml += `<div>\${marked.parse(summary)}</div>`;
+            contentHtml += `<div>${marked.parse(summary)}</div>`;
         });
         
         this.contentOutput.innerHTML = contentHtml;
