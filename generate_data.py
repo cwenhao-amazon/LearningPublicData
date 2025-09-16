@@ -1,17 +1,18 @@
 import os
 import json
 import glob
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import dash
+from dash import dcc, html
+import dash_bootstrap_components as dbc
+from dash.dependencies import Input, Output, State
+import markdown
 
-class PlotlyLearningContentViewer:
+class LearningContentViewer:
     def __init__(self, directory_path, content_filter="Testing Frameworks", type_filter="tech_choices"):
         self.directory_path = directory_path
         self.content_filter = content_filter
         self.type_filter = type_filter
         self.json_files = self.get_json_files()
-        self.current_json_data = None
-        self.filtered_files = self.filter_and_load_files()
         
     def get_json_files(self):
         """Get all JSON files in the specified directory."""
@@ -28,7 +29,6 @@ class PlotlyLearningContentViewer:
             try:
                 with open(file_path, 'r') as f:
                     data = json.load(f)
-                    # Check if any item matches our filters
                     if any(
                         isinstance(item, dict) and 
                         item.get("type") == self.type_filter and
@@ -41,7 +41,7 @@ class PlotlyLearningContentViewer:
             except Exception as e:
                 print(f"Error loading {file_name}: {e}")
                 
-        return filtered_files if filtered_files else self.json_files
+        return filtered_files
     
     def load_json_file(self, file_name):
         """Load all data from a selected JSON file."""
@@ -51,310 +51,195 @@ class PlotlyLearningContentViewer:
                 return json.load(f)
         except Exception as e:
             return [{"type": "error", "summary": f"Error loading file: {str(e)}", "data": None}]
-    
-    def get_unique_types(self, json_data):
-        """Get unique types from JSON data."""
-        if not json_data:
-            return []
-        return sorted(set(item.get("type", "") for item in json_data if isinstance(item, dict) and item.get("type")))
-    
-    def get_content_by_type(self, json_data, type_name):
-        """Get content of the specified type."""
-        if not json_data:
-            return "No data loaded"
-            
-        content_items = [item for item in json_data if isinstance(item, dict) and item.get("type") == type_name]
-        
-        if not content_items:
-            return f"No content found for type: {type_name}"
-        
-        # Format the content
-        formatted_content = ""
-        has_matching_content = any(
-            self.content_filter in item.get("summary", "")
-            for item in content_items
-        )
-        
-        for item in content_items:
-            summary = item.get("summary", "No summary available")
-            
-            # Highlight the filtered content if present
-            if self.content_filter in summary and type_name == self.type_filter:
-                # Create HTML for highlighting
-                highlighted_summary = summary.replace(
-                    self.content_filter, 
-                    f"<b>{self.content_filter}</b>"
-                )
-                formatted_content += f"{highlighted_summary}<br><br>"
-            else:
-                formatted_content += f"{summary}<br><br>"
-                
-        return formatted_content
-    
-    def create_interactive_viewer(self):
-        """Create an interactive HTML viewer."""
-        # Load data for the first file
-        first_file = self.filtered_files[0] if self.filtered_files else None
-        initial_data = self.load_json_file(first_file) if first_file else []
-        initial_types = self.get_unique_types(initial_data)
-        
-        # Create figure with dropdown for file selection
-        fig = make_subplots(rows=2, cols=1, row_heights=[0.15, 0.85], 
-                           vertical_spacing=0.05)
-        
-        # Filter message
-        filter_message = f"Showing files containing '{self.content_filter}' in '{self.type_filter}' sections"
-        if len(self.filtered_files) < len(self.json_files):
-            filter_message += f" ({len(self.filtered_files)}/{len(self.json_files)} files)"
-        
-        # Add filter information
-        fig.add_annotation(
-            text=filter_message,
-            xref="paper", yref="paper",
-            x=0.5, y=0.99,
-            showarrow=False,
-            font=dict(size=14)
-        )
-        
-        # Add empty content div that will be updated
-        fig.add_trace(
-            go.Scatter(
-                x=[0], y=[0],
-                mode="text",
-                text=[""],
-                hoverinfo="none",
-                showlegend=False
-            ),
-            row=2, col=1
-        )
-        
-        # Create dropdown menus for file and type selection
-        file_buttons = []
-        for file_name in self.filtered_files:
-            # Clean name for display
-            display_name = file_name.replace('_learnings.json', '')
-            
-            file_buttons.append(
-                dict(
-                    label=display_name,
-                    method="update",
-                    args=[
-                        {},  # No data update needed here
-                        {
-                            "title": f"Repository: {display_name}"
-                        }
-                    ],
-                    # We'll use custom JavaScript to handle loading data
-                )
-            )
-        
-        # Set up the layout
-        fig.update_layout(
-            title="Learning Content Viewer",
-            height=800,
-            margin=dict(l=40, r=40, t=120, b=40),
-            updatemenus=[
-                # File selection dropdown
-                dict(
-                    buttons=file_buttons,
-                    direction="down",
-                    pad={"r": 10, "t": 10},
-                    showactive=True,
-                    x=0.1,
-                    xanchor="left",
-                    y=1.05,
-                    yanchor="top",
-                    bgcolor="lightgrey",
-                    type="dropdown",
-                    name="file_selector"
-                ),
-            ],
-            # Add a div where we'll render content
-            annotations=[
-                dict(
-                    text="Select Content Type:",
-                    x=0,
-                    y=0.9,
-                    xref="paper",
-                    yref="paper",
-                    showarrow=False,
-                    align="left"
-                ),
-                dict(
-                    text="Select Repository:",
-                    x=0,
-                    y=1.05,
-                    xref="paper",
-                    yref="paper",
-                    showarrow=False,
-                    align="left"
-                )
-            ]
-        )
-        
-        # Create a hidden div to store data for JavaScript
-        file_data = {}
-        for file_name in self.filtered_files:
-            data = self.load_json_file(file_name)
-            types = self.get_unique_types(data)
-            
-            type_content = {}
-            for type_name in types:
-                type_content[type_name] = self.get_content_by_type(data, type_name)
-                
-            file_data[file_name] = {
-                "types": types,
-                "content": type_content
-            }
-        
-        # Remove axes
-        fig.update_xaxes(visible=False)
-        fig.update_yaxes(visible=False)
-        
-        # Generate HTML
-        html_content = fig.to_html(
-            include_plotlyjs=True,
-            full_html=True,
-            include_mathjax=False
-        )
-        
-        # Add JavaScript to handle updating content
-        js_code = f"""
-        <script>
-            // Store all data
-            const fileData = {json.dumps(file_data)};
-            const filteredFiles = {json.dumps(self.filtered_files)};
-            
-            // Function to update content based on selections
-            function updateContent(fileName, typeName) {{
-                const contentDiv = document.getElementById('content-display');
-                if (!contentDiv) {{
-                    console.error('Content div not found');
-                    return;
-                }}
-                
-                if (fileData[fileName] && fileData[fileName].content[typeName]) {{
-                    contentDiv.innerHTML = fileData[fileName].content[typeName];
-                }} else {{
-                    contentDiv.innerHTML = "No content available";
-                }}
-                
-                // Update type buttons
-                updateTypeButtons(fileName);
-            }}
-            
-            // Function to update type buttons based on selected file
-            function updateTypeButtons(fileName) {{
-                const buttonContainer = document.getElementById('type-buttons');
-                if (!buttonContainer) {{
-                    console.error('Button container not found');
-                    return;
-                }}
-                
-                // Clear existing buttons
-                buttonContainer.innerHTML = '';
-                
-                if (fileData[fileName] && fileData[fileName].types) {{
-                    fileData[fileName].types.forEach(typeName => {{
-                        const btn = document.createElement('button');
-                        btn.textContent = typeName;
-                        btn.style.margin = '5px';
-                        btn.style.padding = '8px 12px';
-                        btn.style.cursor = 'pointer';
-                        btn.onclick = function() {{ 
-                            updateContent(fileName, typeName);
-                            
-                            // Highlight active button
-                            document.querySelectorAll('#type-buttons button').forEach(b => {{
-                                b.style.backgroundColor = '';
-                                b.style.fontWeight = 'normal';
-                            }});
-                            btn.style.backgroundColor = '#e0e0e0';
-                            btn.style.fontWeight = 'bold';
-                        }};
-                        buttonContainer.appendChild(btn);
-                    }});
-                    
-                    // Select first type by default
-                    if (fileData[fileName].types.length > 0) {{
-                        updateContent(fileName, fileData[fileName].types[0]);
-                        buttonContainer.firstChild.style.backgroundColor = '#e0e0e0';
-                        buttonContainer.firstChild.style.fontWeight = 'bold';
-                    }}
-                }}
-            }}
-            
-            // Initialize after page loads
-            document.addEventListener('DOMContentLoaded', function() {{
-                // Add content display div
-                const contentDiv = document.createElement('div');
-                contentDiv.id = 'content-display';
-                contentDiv.style.backgroundColor = 'white';
-                contentDiv.style.padding = '20px';
-                contentDiv.style.margin = '20px';
-                contentDiv.style.border = '1px solid #ddd';
-                contentDiv.style.borderRadius = '5px';
-                contentDiv.style.height = 'calc(100% - 180px)';
-                contentDiv.style.overflowY = 'auto';
-                
-                // Add button container
-                const buttonContainer = document.createElement('div');
-                buttonContainer.id = 'type-buttons';
-                buttonContainer.style.margin = '10px 20px';
-                
-                // Insert them into the document
-                const plotlyDiv = document.querySelector('.plotly-graph-div');
-                plotlyDiv.parentNode.insertBefore(buttonContainer, plotlyDiv.nextSibling);
-                plotlyDiv.parentNode.insertBefore(contentDiv, plotlyDiv.nextSibling);
-                
-                // Handle file dropdown clicks
-                document.querySelectorAll('g.updatemenu-item-text').forEach((item, index) => {{
-                    item.addEventListener('click', function() {{
-                        if (index < filteredFiles.length) {{
-                            updateTypeButtons(filteredFiles[index]);
-                        }}
-                    }});
-                }});
-                
-                // Initialize with the first file
-                if (filteredFiles.length > 0) {{
-                    updateTypeButtons(filteredFiles[0]);
-                }}
-            }});
-        </script>
-        <style>
-            #content-display h1 {{ font-size: 24px; margin-top: 0; }}
-            #content-display h2 {{ font-size: 20px; }}
-            #content-display h3 {{ font-size: 18px; }}
-            #content-display p {{ margin-bottom: 16px; }}
-            #content-display b {{ background-color: #ffffcc; font-weight: bold; }}
-            #type-buttons button:hover {{ background-color: #f0f0f0; }}
-        </style>
-        """
-        
-        # Add the JavaScript to the HTML
-        html_content = html_content.replace('</body>', f'{js_code}</body>')
-        
-        return html_content
-        
-    def save_viewer(self, output_path='learning_content_viewer.html'):
-        """Save the interactive viewer to an HTML file."""
-        html_content = self.create_interactive_viewer()
-        
-        try:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(html_content)
-            print(f"Interactive viewer saved to {output_path}")
-            return True
-        except Exception as e:
-            print(f"Error saving interactive viewer: {e}")
-            return False
 
-# Usage example
-directory_path = "/home/cwenhao/workplace/BigWeaverContextLearningsLambdaWorkSpace/src/BigWeaverContextLearningsLambda/test/local/output/huggingface_sonnet3_7/repo_learning/learnings"
-viewer = PlotlyLearningContentViewer(
-    directory_path,
-    #content_filter="Testing Frameworks",
-    #type_filter="tech_choices"
+# Initialize the Dash app
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app.title = "Learning Content Viewer"
+
+# Configure for GitHub Pages
+server = app.server
+
+# Directory path - modify this to your data directory
+directory_path = "data/learnings"
+
+# Initialize the viewer
+viewer = LearningContentViewer(directory_path)
+
+# Get filtered files
+filtered_files = viewer.filter_and_load_files()
+display_files = filtered_files if filtered_files else viewer.json_files
+
+# App layout
+app.layout = dbc.Container([
+    dbc.Row([
+        dbc.Col([
+            html.H1("Learning Content Viewer", className="mt-3 mb-4"),
+            
+            # Filter indicator
+            html.Div(
+                id="filter-indicator",
+                children=(f"Showing {len(filtered_files)} files containing '{viewer.content_filter}' " +
+                          f"in '{viewer.type_filter}' sections") if filtered_files else 
+                         f"No files found containing '{viewer.content_filter}' in '{viewer.type_filter}' sections. " +
+                         "Showing all files.",
+                className="mb-3"
+            ),
+            
+            # File selection dropdown
+            dbc.Label("Select file:"),
+            dcc.Dropdown(
+                id='file-dropdown',
+                options=[{'label': file, 'value': file} for file in display_files],
+                value=display_files[0] if display_files else None,
+                className="mb-4"
+            ),
+            
+            # Type buttons
+            html.Div([
+                dbc.Label("Select content type:"),
+                html.Div(id='type-buttons', className="mb-4")
+            ]),
+            
+            # Content display
+            html.Div(id='content-output', className="p-3 border rounded")
+        ], width=12)
+    ])
+], fluid=True)
+
+@app.callback(
+    Output('type-buttons', 'children'),
+    Output('content-output', 'children'),
+    Input('file-dropdown', 'value'),
+    State('content-output', 'children')
 )
-viewer.save_viewer("index.html")
+def update_content(selected_file, current_content):
+    if not selected_file:
+        return [], html.P("Please select a file to view content")
+        
+    # Load JSON file
+    json_data = viewer.load_json_file(selected_file)
+    
+    # Get unique types from the JSON data
+    types = set(item.get("type", "") for item in json_data if isinstance(item, dict) and item.get("type"))
+    
+    # Create type buttons
+    type_buttons = dbc.ButtonGroup([
+        dbc.Button(
+            type_name.replace('_', ' ').title(),
+            id={'type': 'type-button', 'index': type_name},
+            color="primary",
+            outline=True,
+            className="me-2 mb-2"
+        ) for type_name in sorted(types) if type_name
+    ])
+    
+    # Find the default type to display
+    default_type = None
+    
+    # First look for the type containing our filter text
+    matching_items = [
+        item for item in json_data 
+        if isinstance(item, dict) and 
+        item.get("type") == viewer.type_filter and
+        "summary" in item and
+        viewer.content_filter in item.get("summary", "")
+    ]
+    
+    if matching_items:
+        default_type = viewer.type_filter
+    elif json_data and isinstance(json_data, list) and len(json_data) > 0:
+        # If no match, show the first available type
+        first_item = json_data[0]
+        if isinstance(first_item, dict) and "type" in first_item:
+            default_type = first_item["type"]
+    
+    if not default_type:
+        return type_buttons, html.P("No content found in the selected file")
+    
+    # Get content for the default type
+    return type_buttons, generate_content_html(selected_file, json_data, default_type, viewer.content_filter, viewer.type_filter)
+
+@app.callback(
+    Output('content-output', 'children', allow_duplicate=True),
+    Input({'type': 'type-button', 'index': dash.dependencies.ALL}, 'n_clicks'),
+    State('file-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def display_content_by_type(button_clicks, selected_file):
+    if not button_clicks or not any(button_clicks) or not selected_file:
+        return dash.no_update
+    
+    # Find which button was clicked
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return dash.no_update
+        
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    if not button_id:
+        return dash.no_update
+        
+    # Extract the type_name from the button ID
+    try:
+        button_dict = json.loads(button_id)
+        type_name = button_dict['index']
+    except:
+        return dash.no_update
+    
+    # Load JSON file
+    json_data = viewer.load_json_file(selected_file)
+    
+    # Generate content HTML
+    return generate_content_html(selected_file, json_data, type_name, viewer.content_filter, viewer.type_filter)
+
+def generate_content_html(file_name, json_data, type_name, content_filter, type_filter):
+    """Generate HTML content for the specified type."""
+    content_items = [item for item in json_data if isinstance(item, dict) and item.get("type") == type_name]
+    
+    if not content_items:
+        return html.P(f"No content found for type: {type_name}")
+    
+    # Extract the repository name
+    repo_name = file_name.replace('_learnings.json', '')
+    
+    # Create the content elements
+    content_elements = [
+        html.H2(f"{repo_name} - {type_name.replace('_', ' ').title()}")
+    ]
+    
+    # Check if any item contains our filter
+    has_matching_content = any(
+        content_filter in item.get("summary", "")
+        for item in content_items
+    )
+    
+    # If this is our target type and has our filter, add a note
+    if type_name == type_filter and has_matching_content:
+        content_elements.append(
+            html.Em(f"This section contains '{content_filter}'")
+        )
+    
+    # Add each item's summary
+    for item in content_items:
+        summary = item.get("summary", "No summary available")
+        
+        # Highlight the filtered content if present
+        if content_filter in summary and type_name == type_filter:
+            # Split text at the filter term and wrap it with bold tag
+            parts = summary.split(content_filter)
+            marked_content = []
+            
+            for i, part in enumerate(parts):
+                marked_content.append(part)
+                if i < len(parts) - 1:  # Don't add filter text after the last part
+                    marked_content.append(html.Strong(content_filter))
+            
+            content_elements.append(html.P(marked_content))
+        else:
+            content_elements.append(
+                html.P(summary)
+            )
+    
+    return content_elements
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
